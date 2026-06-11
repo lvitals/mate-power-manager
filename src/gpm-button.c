@@ -195,9 +195,13 @@ gpm_button_xevent_key (GpmButton *button, guint keysym, const gchar *key_name)
 	gboolean ret;
 	gchar *keycode_str;
 	guint keycode;
+	GdkDisplay *display = gdk_display_get_default ();
+
+	if (!GDK_IS_X11_DISPLAY (display))
+		return FALSE;
 
 	/* convert from keysym to keycode */
-	keycode = XKeysymToKeycode (GDK_DISPLAY_XDISPLAY (gdk_display_get_default()), keysym);
+	keycode = XKeysymToKeycode (GDK_DISPLAY_XDISPLAY (display), keysym);
 	if (keycode == 0) {
 		g_warning ("could not map keysym %x to keycode", keysym);
 		return FALSE;
@@ -362,27 +366,30 @@ gpm_button_init (GpmButton *button)
 	button->priv->lid_is_closed = up_client_get_lid_is_closed (button->priv->client);
 	g_signal_connect (button->priv->client, "notify",
 			  G_CALLBACK (gpm_button_client_changed_cb), button);
-	/* register the brightness keys */
-	gpm_button_xevent_key (button, XF86XK_PowerOff, GPM_BUTTON_POWER);
 
-	/* The kernel messes up suspend/hibernate in some places. One of
-	 * them is the key names. Unfortunately, they refuse to see the
-	 * errors of their way in the name of 'compatibility'. Meh
-	 */
-	gpm_button_xevent_key (button, XF86XK_Suspend, GPM_BUTTON_HIBERNATE);
-	gpm_button_xevent_key (button, XF86XK_Sleep, GPM_BUTTON_SUSPEND); /* should be configurable */
-	gpm_button_xevent_key (button, XF86XK_Hibernate, GPM_BUTTON_HIBERNATE);
-	gpm_button_xevent_key (button, XF86XK_MonBrightnessUp, GPM_BUTTON_BRIGHT_UP);
-	gpm_button_xevent_key (button, XF86XK_MonBrightnessDown, GPM_BUTTON_BRIGHT_DOWN);
-	gpm_button_xevent_key (button, XF86XK_ScreenSaver, GPM_BUTTON_LOCK);
-	gpm_button_xevent_key (button, XF86XK_Battery, GPM_BUTTON_BATTERY);
-	gpm_button_xevent_key (button, XF86XK_KbdBrightnessUp, GPM_BUTTON_KBD_BRIGHT_UP);
-	gpm_button_xevent_key (button, XF86XK_KbdBrightnessDown, GPM_BUTTON_KBD_BRIGHT_DOWN);
-	gpm_button_xevent_key (button, XF86XK_KbdLightOnOff, GPM_BUTTON_KBD_BRIGHT_TOGGLE);
+	if (GDK_IS_X11_DISPLAY (gdk_display_get_default ())) {
+		/* register the brightness keys */
+		gpm_button_xevent_key (button, XF86XK_PowerOff, GPM_BUTTON_POWER);
 
-	/* use global filter */
-	gdk_window_add_filter (button->priv->window,
-			       gpm_button_filter_x_events, (gpointer) button);
+		/* The kernel messes up suspend/hibernate in some places. One of
+		 * them is the key names. Unfortunately, they refuse to see the
+		 * errors of their way in the name of 'compatibility'. Meh
+		 */
+		gpm_button_xevent_key (button, XF86XK_Suspend, GPM_BUTTON_HIBERNATE);
+		gpm_button_xevent_key (button, XF86XK_Sleep, GPM_BUTTON_SUSPEND); /* should be configurable */
+		gpm_button_xevent_key (button, XF86XK_Hibernate, GPM_BUTTON_HIBERNATE);
+		gpm_button_xevent_key (button, XF86XK_MonBrightnessUp, GPM_BUTTON_BRIGHT_UP);
+		gpm_button_xevent_key (button, XF86XK_MonBrightnessDown, GPM_BUTTON_BRIGHT_DOWN);
+		gpm_button_xevent_key (button, XF86XK_ScreenSaver, GPM_BUTTON_LOCK);
+		gpm_button_xevent_key (button, XF86XK_Battery, GPM_BUTTON_BATTERY);
+		gpm_button_xevent_key (button, XF86XK_KbdBrightnessUp, GPM_BUTTON_KBD_BRIGHT_UP);
+		gpm_button_xevent_key (button, XF86XK_KbdBrightnessDown, GPM_BUTTON_KBD_BRIGHT_DOWN);
+		gpm_button_xevent_key (button, XF86XK_KbdLightOnOff, GPM_BUTTON_KBD_BRIGHT_TOGGLE);
+
+		/* use global filter */
+		gdk_window_add_filter (button->priv->window,
+				       gpm_button_filter_x_events, (gpointer) button);
+	}
 }
 
 /**

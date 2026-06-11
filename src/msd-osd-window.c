@@ -428,8 +428,22 @@ msd_osd_window_is_composited (MsdOsdWindow *window)
 gboolean
 msd_osd_window_is_valid (MsdOsdWindow *window)
 {
-        GdkScreen *screen = gtk_widget_get_screen (GTK_WIDGET (window));
-        gint scale_factor = gtk_widget_get_scale_factor (GTK_WIDGET (window));
+        GdkScreen *screen;
+        gint scale_factor;
+
+        if (window == NULL || !GTK_IS_WIDGET (window))
+                return FALSE;
+
+        screen = gtk_widget_get_screen (GTK_WIDGET (window));
+        if (screen == NULL)
+                return FALSE;
+
+        scale_factor = 1;
+        if (GTK_IS_WIDGET (window)) {
+             /* Use g_object_get for scale-factor to be extra safe */
+             g_object_get (window, "scale-factor", &scale_factor, NULL);
+        }
+
         return gdk_screen_is_composited (screen) == window->priv->is_composited
             && scale_factor == window->priv->scale_factor;
 }
@@ -444,12 +458,19 @@ msd_osd_window_init (MsdOsdWindow *window)
 
         screen = gtk_widget_get_screen (GTK_WIDGET (window));
 
-        window->priv->is_composited = (gdk_screen_is_composited (screen) != FALSE);
-        window->priv->scale_factor = gtk_widget_get_scale_factor (GTK_WIDGET (window));
+        window->priv->is_composited = (screen != NULL && gdk_screen_is_composited (screen) != FALSE);
+        window->priv->scale_factor = 1;
 
-        if (window->priv->is_composited) {
+        if (screen != NULL) {
+                g_object_get (window, "scale-factor", &window->priv->scale_factor, NULL);
+        }
+
+        if (window->priv->is_composited && screen != NULL) {
                 gdouble scalew, scaleh, scale;
                 gint size;
+                GdkDisplay *display = gdk_screen_get_display (screen);
+                GdkMonitor *monitor = gdk_display_get_monitor (display, 0);
+                GdkRectangle geometry;
 
                 gtk_window_set_decorated (GTK_WINDOW (window), FALSE);
                 gtk_widget_set_app_paintable (GTK_WIDGET (window), TRUE);
@@ -458,10 +479,16 @@ msd_osd_window_init (MsdOsdWindow *window)
                 gtk_style_context_add_class (style, "window-frame");
 
                 /* assume 110x110 on a 640x480 display and scale from there */
-                scalew = WidthOfScreen (gdk_x11_screen_get_xscreen (screen)) / (640.0 * window->priv->scale_factor);
-                scaleh = HeightOfScreen (gdk_x11_screen_get_xscreen (screen)) / (480.0 * window->priv->scale_factor);
+                if (GDK_IS_X11_DISPLAY (display)) {
+                        scalew = WidthOfScreen (gdk_x11_screen_get_xscreen (screen)) / (640.0 * window->priv->scale_factor);
+                        scaleh = HeightOfScreen (gdk_x11_screen_get_xscreen (screen)) / (480.0 * window->priv->scale_factor);
+                } else {
+                        gdk_monitor_get_geometry (monitor, &geometry);
+                        scalew = (double)geometry.width / (640.0 * window->priv->scale_factor);
+                        scaleh = (double)geometry.height / (480.0 * window->priv->scale_factor);
+                }
                 scale = MIN (scalew, scaleh);
-                size = 110 * MAX (1, scale);
+                size = 110 * MAX (1, (int)scale);
 
                 gtk_window_set_default_size (GTK_WINDOW (window), size, size);
 

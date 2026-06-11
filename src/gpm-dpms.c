@@ -291,16 +291,23 @@ gpm_dpms_class_init (GpmDpmsClass *klass)
 static void
 gpm_dpms_init (GpmDpms *dpms)
 {
+	GdkDisplay *display = gdk_display_get_default ();
+
 	dpms->priv = gpm_dpms_get_instance_private (dpms);
+	dpms->priv->display = NULL;
+	dpms->priv->dpms_capable = FALSE;
 
-	/* DPMSCapable() can never change for a given display */
-	dpms->priv->display = GDK_DISPLAY_XDISPLAY (gdk_display_get_default());
-	dpms->priv->dpms_capable = DPMSCapable (dpms->priv->display);
-	dpms->priv->timer_id = g_timeout_add_seconds (GPM_DPMS_POLL_TIME, (GSourceFunc)gpm_dpms_poll_mode_cb, dpms);
-	g_source_set_name_by_id (dpms->priv->timer_id, "[GpmDpms] poll");
+	if (GDK_IS_X11_DISPLAY (display)) {
+		/* DPMSCapable() can never change for a given display */
+		dpms->priv->display = GDK_DISPLAY_XDISPLAY (display);
+		dpms->priv->dpms_capable = DPMSCapable (dpms->priv->display);
 
-	/* ensure we clear the default timeouts (Standby: 1200s, Suspend: 1800s, Off: 2400s) */
-	gpm_dpms_clear_timeouts (dpms);
+		/* ensure we clear the default timeouts (Standby: 1200s, Suspend: 1800s, Off: 2400s) */
+		gpm_dpms_clear_timeouts (dpms);
+
+		dpms->priv->timer_id = g_timeout_add_seconds (GPM_DPMS_POLL_TIME, (GSourceFunc)gpm_dpms_poll_mode_cb, dpms);
+		g_source_set_name_by_id (dpms->priv->timer_id, "[GpmDpms] poll");
+	}
 }
 
 /**

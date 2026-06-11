@@ -88,6 +88,10 @@ gint64
 egg_idletime_get_time (EggIdletime *idletime)
 {
 	XSyncValue value;
+
+	if (idletime->priv->dpy == NULL || idletime->priv->idle_counter == None)
+		return 0;
+
 	XSyncQueryCounter (idletime->priv->dpy, idletime->priv->idle_counter, &value);
 	return egg_idletime_xsyncvalue_to_int64 (value);
 }
@@ -102,6 +106,9 @@ egg_idletime_xsync_alarm_set (EggIdletime *idletime, EggIdletimeAlarm *alarm, Eg
 	XSyncValue delta;
 	unsigned int flags;
 	XSyncTestType test;
+
+	if (idletime->priv->dpy == NULL || idletime->priv->idle_counter == None)
+		return;
 
 	/* just remove it */
 	if (alarm_type == EGG_IDLETIME_ALARM_TYPE_DISABLED) {
@@ -328,7 +335,7 @@ egg_idletime_alarm_free (EggIdletime *idletime, EggIdletimeAlarm *alarm)
 	g_return_val_if_fail (EGG_IS_IDLETIME (idletime), FALSE);
 	g_return_val_if_fail (alarm != NULL, FALSE);
 
-	if (alarm->xalarm)
+	if (idletime->priv->dpy != NULL && alarm->xalarm)
 		XSyncDestroyAlarm (idletime->priv->dpy, alarm->xalarm);
 	g_object_unref (alarm->idletime);
 	g_ptr_array_remove (idletime->priv->array, alarm);
@@ -397,34 +404,40 @@ egg_idletime_init (EggIdletime *idletime)
 	idletime->priv->reset_set = FALSE;
 	idletime->priv->idle_counter = None;
 	idletime->priv->sync_event = 0;
-	idletime->priv->dpy = GDK_DISPLAY_XDISPLAY (gdk_display_get_default());
+	idletime->priv->dpy = NULL;
 
-	/* get the sync event */
-	if (!XSyncQueryExtension (idletime->priv->dpy, &idletime->priv->sync_event, &sync_error)) {
-		g_warning ("No Sync extension.");
-		return;
-	}
+	if (GDK_IS_X11_DISPLAY (gdk_display_get_default())) {
+		idletime->priv->dpy = GDK_DISPLAY_XDISPLAY (gdk_display_get_default());
 
-	/* gtk_init should do XSyncInitialize for us */
-	counters = XSyncListSystemCounters (idletime->priv->dpy, &ncounters);
-	for (i=0; i < ncounters && !idletime->priv->idle_counter; i++) {
-		if (strcmp(counters[i].name, "IDLETIME") == 0)
-			idletime->priv->idle_counter = counters[i].counter;
+		/* get the sync event */
+		if (!XSyncQueryExtension (idletime->priv->dpy, &idletime->priv->sync_event, &sync_error)) {
+			g_warning ("No Sync extension.");
+			return;
+		}
+
+		/* gtk_init should do XSyncInitialize for us */
+		counters = XSyncListSystemCounters (idletime->priv->dpy, &ncounters);
+		for (i=0; i < ncounters && !idletime->priv->idle_counter; i++) {
+			if (strcmp(counters[i].name, "IDLETIME") == 0)
+				idletime->priv->idle_counter = counters[i].counter;
+		}
+		XSyncFreeSystemCounterList (counters);
+
+		if (idletime->priv->idle_counter) {
+			/* catch the timer alarm */
+			gdk_window_add_filter (NULL, egg_idletime_event_filter_cb, idletime);
+
+			/* create a reset alarm */
+			alarm = egg_idletime_alarm_new (idletime, 0);
+			g_ptr_array_add (idletime->priv->array, alarm);
+		}
 	}
-	XSyncFreeSystemCounterList (counters);
 
 	/* arh. we don't have IDLETIME support */
 	if (!idletime->priv->idle_counter) {
 		g_warning ("No idle counter.");
 		return;
 	}
-
-	/* catch the timer alarm */
-	gdk_window_add_filter (NULL, egg_idletime_event_filter_cb, idletime);
-
-	/* create a reset alarm */
-	alarm = egg_idletime_alarm_new (idletime, 0);
-	g_ptr_array_add (idletime->priv->array, alarm);
 }
 
 /**
@@ -442,6 +455,10 @@ egg_idletime_finalize (GObject *object)
 
 	idletime = EGG_IDLETIME (object);
 	idletime->priv = egg_idletime_get_instance_private (idletime);
+
+	if (GDK_IS_X11_DISPLAY (gdk_display_get_default ())) {
+		gdk_window_remove_filter (NULL, egg_idletime_event_filter_cb, idletime);
+	}
 
 	/* free all counters, including reset counter */
 	for (i=0; i<idletime->priv->array->len; i++) {

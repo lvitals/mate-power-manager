@@ -255,11 +255,18 @@ static gboolean
 gpm_brightness_setup_display (GpmBrightness *brightness)
 {
 	gint major, minor;
+	GdkDisplay *display;
 
 	g_return_val_if_fail (GPM_IS_BRIGHTNESS (brightness), FALSE);
 
+	display = gdk_display_get_default ();
+	if (!GDK_IS_X11_DISPLAY (display)) {
+		g_debug ("Wayland detected, XRANDR brightness not available");
+		return FALSE;
+	}
+
 	/* get the display */
-	brightness->priv->dpy = GDK_DISPLAY_XDISPLAY (gdk_display_get_default());
+	brightness->priv->dpy = GDK_DISPLAY_XDISPLAY (display);
 	if (!brightness->priv->dpy) {
 		g_error ("Cannot open display");
 		return FALSE;
@@ -838,24 +845,26 @@ gpm_brightness_update_cache (GpmBrightness *brightness)
 	gscreen = gdk_display_get_default_screen (display);
 
 	/* if we have not setup the changed on the monitor, set it here */
-	if (g_object_get_data (G_OBJECT (gscreen), "gpk-set-monitors-changed") == NULL) {
+	if (gscreen != NULL && g_object_get_data (G_OBJECT (gscreen), "gpk-set-monitors-changed") == NULL) {
 		g_debug ("watching ::monitors_changed on %p", gscreen);
 		g_object_set_data (G_OBJECT (gscreen), "gpk-set-monitors-changed", (gpointer) "true");
 		g_signal_connect (G_OBJECT (gscreen), "monitors_changed",
 				  G_CALLBACK (gpm_brightness_monitors_changed), brightness);
 	}
 
-	root = RootWindow (brightness->priv->dpy, 0);
+	if (GDK_IS_X11_DISPLAY (display) && brightness->priv->dpy != NULL) {
+		root = RootWindow (brightness->priv->dpy, 0);
 
-	gdk_x11_display_error_trap_push (display);
-	resource = XRRGetScreenResourcesCurrent (brightness->priv->dpy, root);
-	if (gdk_x11_display_error_trap_pop (display) || resource == NULL) {
-		g_warning ("failed to XRRGetScreenResourcesCurrent");
-	}
+		gdk_x11_display_error_trap_push (display);
+		resource = XRRGetScreenResourcesCurrent (brightness->priv->dpy, root);
+		if (gdk_x11_display_error_trap_pop (display) || resource == NULL) {
+			g_warning ("failed to XRRGetScreenResourcesCurrent");
+		}
 
-	if (resource != NULL) {
-		g_debug ("adding resource %p", resource);
-		g_ptr_array_add (brightness->priv->resources, resource);
+		if (resource != NULL) {
+			g_debug ("adding resource %p", resource);
+			g_ptr_array_add (brightness->priv->resources, resource);
+		}
 	}
 }
 
@@ -886,12 +895,21 @@ static void
 gpm_brightness_finalize (GObject *object)
 {
 	GpmBrightness *brightness;
+	GdkDisplay *display;
+
 	g_return_if_fail (object != NULL);
 	g_return_if_fail (GPM_IS_BRIGHTNESS (object));
+
 	brightness = GPM_BRIGHTNESS (object);
+	display = gdk_display_get_default ();
+
 	g_ptr_array_unref (brightness->priv->resources);
-	gdk_window_remove_filter (brightness->priv->root_window,
-				  gpm_brightness_filter_xevents, brightness);
+
+	if (GDK_IS_X11_DISPLAY (display) && brightness->priv->root_window != NULL) {
+		gdk_window_remove_filter (brightness->priv->root_window,
+					  gpm_brightness_filter_xevents, brightness);
+	}
+
 	G_OBJECT_CLASS (gpm_brightness_parent_class)->finalize (object);
 }
 
@@ -942,23 +960,25 @@ gpm_brightness_init (GpmBrightness *brightness)
 	brightness->priv->root_window = gdk_screen_get_root_window (screen);
 	display = gdk_display_get_default ();
 
-	/* as we a filtering by a window, we have to add an event type */
-	if (!XRRQueryExtension (GDK_DISPLAY_XDISPLAY (gdk_display_get_default()), &event_base, &ignore)) {
-		g_warning ("can't get event_base for XRR");
-	}
-	gdk_x11_register_standard_event_type (display, event_base, RRNotify + 1);
-	gdk_window_add_filter (brightness->priv->root_window,
-			       gpm_brightness_filter_xevents, brightness);
+	if (GDK_IS_X11_DISPLAY (display)) {
+		/* as we a filtering by a window, we have to add an event type */
+		if (!XRRQueryExtension (GDK_DISPLAY_XDISPLAY (display), &event_base, &ignore)) {
+			g_warning ("can't get event_base for XRR");
+		}
+		gdk_x11_register_standard_event_type (display, event_base, RRNotify + 1);
+		gdk_window_add_filter (brightness->priv->root_window,
+				       gpm_brightness_filter_xevents, brightness);
 
-	/* don't abort on error */
-	gdk_x11_display_error_trap_push (display);
-	XRRSelectInput (GDK_DISPLAY_XDISPLAY (gdk_display_get_default()),
-			GDK_WINDOW_XID (brightness->priv->root_window),
-			RRScreenChangeNotifyMask |
-			RROutputPropertyNotifyMask); /* <--- the only one we need, but see rh:345551 */
-	gdk_display_flush (display);
-	if (gdk_x11_display_error_trap_pop (display))
-		g_warning ("failed to select XRRSelectInput");
+		/* don't abort on error */
+		gdk_x11_display_error_trap_push (display);
+		XRRSelectInput (GDK_DISPLAY_XDISPLAY (display),
+				GDK_WINDOW_XID (brightness->priv->root_window),
+				RRScreenChangeNotifyMask |
+				RROutputPropertyNotifyMask); /* <--- the only one we need, but see rh:345551 */
+		gdk_display_flush (display);
+		if (gdk_x11_display_error_trap_pop (display))
+			g_warning ("failed to select XRRSelectInput");
+	}
 
 	/* create cache of XRRScreenResources as XRRGetScreenResources() is slow */
 	gpm_brightness_update_cache (brightness);

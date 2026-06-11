@@ -41,6 +41,14 @@
 #include <gtk/gtk.h>
 #include <libupower-glib/upower.h>
 
+#ifdef HAVE_APPINDICATOR
+# ifdef HAVE_AYATANA_APPINDICATOR
+#  include <libayatana-appindicator/app-indicator.h>
+# else
+#  include <libappindicator/app-indicator.h>
+# endif
+#endif
+
 #include <libmate-desktop/mate-image-menu-item.h>
 
 #include "gpm-upower.h"
@@ -49,14 +57,21 @@
 #include "gpm-icon-names.h"
 #include "gpm-tray-icon.h"
 
-static void     gpm_tray_icon_finalize   (GObject	   *object);
+static void     gpm_tray_icon_finalize      (GObject      *object);
+static void     gpm_tray_icon_populate_menu (GpmTrayIcon  *icon, GtkMenu *menu);
 
 struct GpmTrayIconPrivate
 {
 	GSettings		*settings;
 	GpmEngine		*engine;
-	GtkStatusIcon		*status_icon;
 	gboolean		 show_actions;
+#ifdef HAVE_APPINDICATOR
+	AppIndicator		*app_indicator;
+	GtkWidget		*indicator_menu;
+	gchar			*icon_name;
+#else
+	GtkStatusIcon		*status_icon;
+#endif
 };
 
 G_DEFINE_TYPE_WITH_PRIVATE (GpmTrayIcon, gpm_tray_icon, G_TYPE_OBJECT)
@@ -79,7 +94,13 @@ static void
 gpm_tray_icon_show (GpmTrayIcon *icon, gboolean enabled)
 {
 	g_return_if_fail (GPM_IS_TRAY_ICON (icon));
+#ifdef HAVE_APPINDICATOR
+	app_indicator_set_status (icon->priv->app_indicator,
+	                          enabled ? APP_INDICATOR_STATUS_ACTIVE
+	                                  : APP_INDICATOR_STATUS_PASSIVE);
+#else
 	gtk_status_icon_set_visible (icon->priv->status_icon, enabled);
+#endif
 }
 
 /**
@@ -93,20 +114,29 @@ gpm_tray_icon_set_tooltip (GpmTrayIcon *icon, const gchar *tooltip)
 	g_return_val_if_fail (GPM_IS_TRAY_ICON (icon), FALSE);
 	g_return_val_if_fail (tooltip != NULL, FALSE);
 
+#ifdef HAVE_APPINDICATOR
+	app_indicator_set_title (icon->priv->app_indicator, tooltip);
+#else
 	gtk_status_icon_set_tooltip_text (icon->priv->status_icon, tooltip);
 	gtk_status_icon_set_title (icon->priv->status_icon, tooltip);
+#endif
 
 	return TRUE;
 }
 
 /**
  * gpm_tray_icon_get_status_icon:
+ * Returns the GtkStatusIcon, or NULL when using AppIndicator/Wayland.
  **/
 GtkStatusIcon *
 gpm_tray_icon_get_status_icon (GpmTrayIcon *icon)
 {
 	g_return_val_if_fail (GPM_IS_TRAY_ICON (icon), NULL);
+#ifdef HAVE_APPINDICATOR
+	return NULL;
+#else
 	return g_object_ref (icon->priv->status_icon);
+#endif
 }
 
 /**
@@ -121,11 +151,24 @@ gpm_tray_icon_set_icon (GpmTrayIcon *icon, const gchar *icon_name)
 	g_return_val_if_fail (icon != NULL, FALSE);
 	g_return_val_if_fail (GPM_IS_TRAY_ICON (icon), FALSE);
 
+	g_debug ("gpm_tray_icon_set_icon: %s", icon_name ? icon_name : "NULL");
+
 	if (icon_name != NULL) {
 		g_debug ("Setting icon to %s", icon_name);
+#ifdef HAVE_APPINDICATOR
+		g_free (icon->priv->icon_name);
+		icon->priv->icon_name = g_strdup (icon_name);
+		app_indicator_set_icon_full (icon->priv->app_indicator,
+		                             icon_name, icon_name);
+		/* Rebuild menu so battery percentages are up to date */
+		gtk_container_foreach (GTK_CONTAINER (icon->priv->indicator_menu),
+		                       (GtkCallback) gtk_widget_destroy, NULL);
+		gpm_tray_icon_populate_menu (icon, GTK_MENU (icon->priv->indicator_menu));
+		gtk_widget_show_all (icon->priv->indicator_menu);
+#else
 		gtk_status_icon_set_from_icon_name (icon->priv->status_icon,
 		                                    icon_name);
-
+#endif
 		/* make sure that we are visible */
 		gpm_tray_icon_show (icon, TRUE);
 	} else {
@@ -326,14 +369,13 @@ gpm_tray_icon_add_primary_device (GpmTrayIcon *icon, GtkMenu *menu, UpDevice *de
 }
 
 /**
- * gpm_tray_icon_create_menu:
+ * gpm_tray_icon_populate_menu:
  *
- * Create the popup menu.
+ * Fill @menu with the current battery/device entries plus preferences/about.
  **/
-static GtkMenu *
-gpm_tray_icon_create_menu (GpmTrayIcon *icon)
+static void
+gpm_tray_icon_populate_menu (GpmTrayIcon *icon, GtkMenu *menu)
 {
-	GtkMenu *menu = (GtkMenu*) gtk_menu_new ();
 	GtkWidget *item;
 	GtkWidget *image;
 	guint dev_cnt = 0;
@@ -406,9 +448,25 @@ gpm_tray_icon_create_menu (GpmTrayIcon *icon)
 skip_prefs:
 	if (device != NULL)
 		g_object_unref (device);
-	return menu;
 }
 
+#ifndef HAVE_APPINDICATOR
+/**
+ * gpm_tray_icon_create_menu:
+ *
+ * Create a fresh popup menu (used by the GtkStatusIcon path).
+ **/
+static GtkMenu *
+gpm_tray_icon_create_menu (GpmTrayIcon *icon)
+{
+	GtkMenu *menu = (GtkMenu*) gtk_menu_new ();
+
+	gpm_tray_icon_populate_menu (icon, menu);
+	return menu;
+}
+#endif /* !HAVE_APPINDICATOR */
+
+#ifndef HAVE_APPINDICATOR
 /**
  * gpm_tray_icon_popup_cleared_cd:
  * @widget: The popup Gtkwidget
@@ -470,6 +528,7 @@ gpm_tray_icon_activate_cb (GtkStatusIcon *status_icon, GpmTrayIcon *icon)
 	g_debug ("icon left clicked");
 	gpm_tray_icon_popup_menu (icon, gtk_get_current_event_time());
 }
+#endif /* !HAVE_APPINDICATOR */
 
 /**
  * gpm_tray_icon_settings_changed_cb:
@@ -505,6 +564,25 @@ gpm_tray_icon_init (GpmTrayIcon *icon)
 	g_signal_connect (icon->priv->settings, "changed",
 			  G_CALLBACK (gpm_tray_icon_settings_changed_cb), icon);
 
+#ifdef HAVE_APPINDICATOR
+	icon->priv->icon_name = NULL;
+	G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+	icon->priv->app_indicator = app_indicator_new ("mate-power-manager",
+	                                                "gpm-ac-adapter",
+	                                                APP_INDICATOR_CATEGORY_HARDWARE);
+	G_GNUC_END_IGNORE_DEPRECATIONS
+	/* Tell AppIndicator where to find the gpm-* icons */
+	app_indicator_set_icon_theme_path (icon->priv->app_indicator, GPM_ICONS_DATA);
+	app_indicator_set_status (icon->priv->app_indicator, APP_INDICATOR_STATUS_PASSIVE);
+
+	/* Build the menu before passing it to AppIndicator so that
+	 * libdbusmenu has items to serialize when the host calls AboutToShow. */
+	icon->priv->indicator_menu = gtk_menu_new ();
+	gpm_tray_icon_populate_menu (icon, GTK_MENU (icon->priv->indicator_menu));
+	gtk_widget_show_all (icon->priv->indicator_menu);
+	app_indicator_set_menu (icon->priv->app_indicator,
+	                        GTK_MENU (icon->priv->indicator_menu));
+#else
 	icon->priv->status_icon = gtk_status_icon_new ();
 	gpm_tray_icon_show (icon, FALSE);
 	g_signal_connect_object (G_OBJECT (icon->priv->status_icon),
@@ -515,6 +593,7 @@ gpm_tray_icon_init (GpmTrayIcon *icon)
 				 "activate",
 				 G_CALLBACK (gpm_tray_icon_activate_cb),
 				 icon, 0);
+#endif
 
 	allowed_in_menu = g_settings_get_boolean (icon->priv->settings, GPM_SETTINGS_SHOW_ACTIONS);
 	gpm_tray_icon_enable_actions (icon, allowed_in_menu);
@@ -534,7 +613,12 @@ gpm_tray_icon_finalize (GObject *object)
 
 	tray_icon = GPM_TRAY_ICON (object);
 
+#ifdef HAVE_APPINDICATOR
+	g_clear_object (&tray_icon->priv->app_indicator);
+	g_free (tray_icon->priv->icon_name);
+#else
 	g_object_unref (tray_icon->priv->status_icon);
+#endif
 	g_object_unref (tray_icon->priv->engine);
 	g_return_if_fail (tray_icon->priv != NULL);
 

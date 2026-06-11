@@ -23,6 +23,7 @@ AM_CPPFLAGS =						\
 	$(GSTREAMER_CFLAGS)				\
 	-DI_KNOW_THE_DEVICEKIT_POWER_API_IS_SUBJECT_TO_CHANGE \
 	$(UPOWER_CFLAGS)				\
+	$(APPINDICATOR_CFLAGS)				\
 	-DBINDIR=\"$(bindir)\"			 	\
 	-DSBINDIR=\"$(sbindir)\"			\
 	-DMATELOCALEDIR=\""$(datadir)/locale"\"		\
@@ -208,6 +209,7 @@ mate_power_manager_LDADD =				\
 	$(LIBNOTIFY_LIBS)				\
 	$(GPM_EXTRA_LIBS)				\
 	$(UPOWER_LIBS)					\
+	$(APPINDICATOR_LIBS)				\
 	-lm
 
 mate_power_manager_CFLAGS =				\

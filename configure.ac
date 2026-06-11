@@ -114,6 +114,28 @@ PKG_CHECK_MODULES(LIBNOTIFY, libnotify >= $LIBNOTIFY_REQUIRED)
 PKG_CHECK_MODULES(UPOWER, upower-glib >= $UPOWER_REQUIRED)
 
 dnl ---------------------------------------------------------------------------
+dnl - AppIndicator (SNI) support for Wayland systray
+dnl ---------------------------------------------------------------------------
+AC_ARG_WITH(appindicator,
+        [AS_HELP_STRING([--without-appindicator],
+                        [Disable AppIndicator/SNI systray support])],
+        [],
+        [with_appindicator=yes])
+
+have_appindicator=no
+if test "$with_appindicator" = "yes"; then
+    PKG_CHECK_MODULES(APPINDICATOR, [ayatana-appindicator3-0.1],
+        [have_appindicator=yes
+         AC_DEFINE(HAVE_APPINDICATOR, 1, [AppIndicator support])
+         AC_DEFINE(HAVE_AYATANA_APPINDICATOR, 1, [Ayatana AppIndicator])],
+        [PKG_CHECK_MODULES(APPINDICATOR, [appindicator3-0.1],
+            [have_appindicator=yes
+             AC_DEFINE(HAVE_APPINDICATOR, 1, [AppIndicator support])],
+            [have_appindicator=no])])
+fi
+AM_CONDITIONAL([HAVE_APPINDICATOR], [test "$have_appindicator" = "yes"])
+
+dnl ---------------------------------------------------------------------------
 dnl - Make paths available for source files
 dnl ---------------------------------------------------------------------------
 AC_SUBST(SYSCONFDIR, $sysconfdir)
@@ -268,6 +290,7 @@ Configure summary:
 
     libsecret support ...........: ${with_libsecret}
     gnome-keyring support .......: ${with_keyring}
+    AppIndicator/SNI support ....: ${have_appindicator}
     Building extra applets ......: ${enable_applets}
     Applets in-process...........: ${enable_applets_inprocess}
     Self test support ...........: ${have_tests}

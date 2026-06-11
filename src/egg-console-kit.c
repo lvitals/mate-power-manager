@@ -283,7 +283,7 @@ egg_console_kit_is_local (EggConsoleKit *console)
 
 	/* maybe console kit does not know about our session */
 	if (console->priv->proxy_session == NULL) {
-		g_warning ("no ConsoleKit session");
+		g_debug ("no ConsoleKit session");
 		goto out;
 	}
 
@@ -318,7 +318,7 @@ egg_console_kit_is_active (EggConsoleKit *console)
 
 	/* maybe console kit does not know about our session */
 	if (console->priv->proxy_session == NULL) {
-		g_warning ("no ConsoleKit session");
+		g_debug ("no ConsoleKit session");
 		goto out;
 	}
 
@@ -404,7 +404,7 @@ egg_console_kit_init (EggConsoleKit *console)
 				 DBUS_TYPE_G_OBJECT_PATH, &console->priv->session_id,
 				 G_TYPE_INVALID);
 	if (!ret) {
-		g_warning ("Failed to get session for pid %u: %s", pid, error->message);
+		g_debug ("Failed to get session for pid %u: %s", pid, error->message);
 		g_error_free (error);
 		goto out;
 	}

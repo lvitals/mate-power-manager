@@ -705,14 +705,22 @@ gpm_backlight_finalize (GObject *object)
 	g_timer_destroy (backlight->priv->idle_timer);
 	gtk_widget_destroy (backlight->priv->popup);
 
-	g_object_unref (backlight->priv->dpms);
-	g_object_unref (backlight->priv->control);
-	g_object_unref (backlight->priv->settings);
-	g_object_unref (backlight->priv->client);
-	g_object_unref (backlight->priv->button);
-	g_object_unref (backlight->priv->idle);
-	g_object_unref (backlight->priv->brightness);
-	g_object_unref (backlight->priv->console);
+	if (backlight->priv->dpms != NULL)
+		g_object_unref (backlight->priv->dpms);
+	if (backlight->priv->control != NULL)
+		g_object_unref (backlight->priv->control);
+	if (backlight->priv->settings != NULL)
+		g_object_unref (backlight->priv->settings);
+	if (backlight->priv->client != NULL)
+		g_object_unref (backlight->priv->client);
+	if (backlight->priv->button != NULL)
+		g_object_unref (backlight->priv->button);
+	if (backlight->priv->idle != NULL)
+		g_object_unref (backlight->priv->idle);
+	if (backlight->priv->brightness != NULL)
+		g_object_unref (backlight->priv->brightness);
+	if (backlight->priv->console != NULL)
+		g_object_unref (backlight->priv->console);
 
 	g_return_if_fail (backlight->priv != NULL);
 	G_OBJECT_CLASS (gpm_backlight_parent_class)->finalize (object);

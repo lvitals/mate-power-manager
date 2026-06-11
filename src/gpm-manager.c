@@ -1978,19 +1978,32 @@ gpm_manager_finalize (GObject *object)
 	                                      on_icon_theme_change,
 	                                      manager);
 
-	g_object_unref (manager->priv->settings);
-	g_object_unref (manager->priv->dpms);
-	g_object_unref (manager->priv->idle);
-	g_object_unref (manager->priv->engine);
-	g_object_unref (manager->priv->tray_icon);
-	g_object_unref (manager->priv->screensaver);
-	g_object_unref (manager->priv->control);
-	g_object_unref (manager->priv->button);
-	g_object_unref (manager->priv->backlight);
-	g_object_unref (manager->priv->kbd_backlight);
-	g_object_unref (manager->priv->console);
-	g_object_unref (manager->priv->client);
-	g_object_unref (manager->priv->status_icon);
+	if (manager->priv->settings != NULL)
+		g_object_unref (manager->priv->settings);
+	if (manager->priv->dpms != NULL)
+		g_object_unref (manager->priv->dpms);
+	if (manager->priv->idle != NULL)
+		g_object_unref (manager->priv->idle);
+	if (manager->priv->engine != NULL)
+		g_object_unref (manager->priv->engine);
+	if (manager->priv->tray_icon != NULL)
+		g_object_unref (manager->priv->tray_icon);
+	if (manager->priv->screensaver != NULL)
+		g_object_unref (manager->priv->screensaver);
+	if (manager->priv->control != NULL)
+		g_object_unref (manager->priv->control);
+	if (manager->priv->button != NULL)
+		g_object_unref (manager->priv->button);
+	if (manager->priv->backlight != NULL)
+		g_object_unref (manager->priv->backlight);
+	if (manager->priv->kbd_backlight != NULL)
+		g_object_unref (manager->priv->kbd_backlight);
+	if (manager->priv->console != NULL)
+		g_object_unref (manager->priv->console);
+	if (manager->priv->client != NULL)
+		g_object_unref (manager->priv->client);
+	if (manager->priv->status_icon != NULL)
+		g_object_unref (manager->priv->status_icon);
 
 	if (LOGIND_RUNNING()) {
 		/* Let systemd take over again ... */

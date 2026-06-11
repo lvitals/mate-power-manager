@@ -264,7 +264,8 @@ gpm_screensaver_finalize (GObject *object)
 	screensaver = GPM_SCREENSAVER (object);
 	screensaver->priv = gpm_screensaver_get_instance_private (screensaver);
 
-	g_object_unref (screensaver->priv->proxy);
+	if (screensaver->priv->proxy != NULL)
+		g_object_unref (screensaver->priv->proxy);
 
 	G_OBJECT_CLASS (gpm_screensaver_parent_class)->finalize (object);
 }

@@ -456,7 +456,10 @@ gpm_session_init (GpmSession *session)
 	session->priv->is_idle_old = FALSE;
 	session->priv->is_idle_inhibited_old = FALSE;
 	session->priv->is_suspend_inhibited_old = FALSE;
+	session->priv->proxy = NULL;
+	session->priv->proxy_presence = NULL;
 	session->priv->proxy_client_private = NULL;
+	session->priv->proxy_prop = NULL;
 
 	connection = dbus_g_bus_get (DBUS_BUS_SESSION, NULL);
 
@@ -466,8 +469,7 @@ gpm_session_init (GpmSession *session)
 								GPM_SESSION_MANAGER_INTERFACE, &error);
 	if (session->priv->proxy == NULL) {
 		g_warning ("DBUS error: %s", error->message);
-		g_error_free (error);
-		return;
+		g_clear_error (&error);
 	}
 
 	/* get org.gnome.SessionManager.Presence interface */
@@ -476,8 +478,7 @@ gpm_session_init (GpmSession *session)
 									 GPM_SESSION_MANAGER_PRESENCE_INTERFACE, &error);
 	if (session->priv->proxy_presence == NULL) {
 		g_warning ("DBUS error: %s", error->message);
-		g_error_free (error);
-		return;
+		g_clear_error (&error);
 	}
 
 	/* get properties interface */
@@ -486,21 +487,24 @@ gpm_session_init (GpmSession *session)
 								     GPM_DBUS_PROPERTIES_INTERFACE, &error);
 	if (session->priv->proxy_prop == NULL) {
 		g_warning ("DBUS error: %s", error->message);
-		g_error_free (error);
-		return;
+		g_clear_error (&error);
 	}
 
-	/* get StatusChanged */
-	dbus_g_proxy_add_signal (session->priv->proxy_presence, "StatusChanged", G_TYPE_UINT, G_TYPE_INVALID);
-	dbus_g_proxy_connect_signal (session->priv->proxy_presence, "StatusChanged", G_CALLBACK (gpm_session_presence_status_changed_cb), session, NULL);
+	if (session->priv->proxy_presence != NULL) {
+		/* get StatusChanged */
+		dbus_g_proxy_add_signal (session->priv->proxy_presence, "StatusChanged", G_TYPE_UINT, G_TYPE_INVALID);
+		dbus_g_proxy_connect_signal (session->priv->proxy_presence, "StatusChanged", G_CALLBACK (gpm_session_presence_status_changed_cb), session, NULL);
+	}
 
-	/* get InhibitorAdded */
-	dbus_g_proxy_add_signal (session->priv->proxy, "InhibitorAdded", DBUS_TYPE_G_OBJECT_PATH, G_TYPE_INVALID);
-	dbus_g_proxy_connect_signal (session->priv->proxy, "InhibitorAdded", G_CALLBACK (gpm_session_inhibit_changed_cb), session, NULL);
+	if (session->priv->proxy != NULL) {
+		/* get InhibitorAdded */
+		dbus_g_proxy_add_signal (session->priv->proxy, "InhibitorAdded", DBUS_TYPE_G_OBJECT_PATH, G_TYPE_INVALID);
+		dbus_g_proxy_connect_signal (session->priv->proxy, "InhibitorAdded", G_CALLBACK (gpm_session_inhibit_changed_cb), session, NULL);
 
-	/* get InhibitorRemoved */
-	dbus_g_proxy_add_signal (session->priv->proxy, "InhibitorRemoved", DBUS_TYPE_G_OBJECT_PATH, G_TYPE_INVALID);
-	dbus_g_proxy_connect_signal (session->priv->proxy, "InhibitorRemoved", G_CALLBACK (gpm_session_inhibit_changed_cb), session, NULL);
+		/* get InhibitorRemoved */
+		dbus_g_proxy_add_signal (session->priv->proxy, "InhibitorRemoved", DBUS_TYPE_G_OBJECT_PATH, G_TYPE_INVALID);
+		dbus_g_proxy_connect_signal (session->priv->proxy, "InhibitorRemoved", G_CALLBACK (gpm_session_inhibit_changed_cb), session, NULL);
+	}
 
 	/* coldplug */
 	session->priv->is_idle_inhibited_old = gpm_session_is_idle_inhibited (session);
@@ -523,11 +527,14 @@ gpm_session_finalize (GObject *object)
 	session = GPM_SESSION (object);
 	session->priv = gpm_session_get_instance_private (session);
 
-	g_object_unref (session->priv->proxy);
-	g_object_unref (session->priv->proxy_presence);
+	if (session->priv->proxy != NULL)
+		g_object_unref (session->priv->proxy);
+	if (session->priv->proxy_presence != NULL)
+		g_object_unref (session->priv->proxy_presence);
 	if (session->priv->proxy_client_private != NULL)
 		g_object_unref (session->priv->proxy_client_private);
-	g_object_unref (session->priv->proxy_prop);
+	if (session->priv->proxy_prop != NULL)
+		g_object_unref (session->priv->proxy_prop);
 
 	G_OBJECT_CLASS (gpm_session_parent_class)->finalize (object);
 }

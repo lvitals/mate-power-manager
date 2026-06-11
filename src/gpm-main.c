@@ -85,7 +85,8 @@ gpm_object_register (DBusGConnection *connection,
 	}
 
 	/* free the bus_proxy */
-	g_object_unref (G_OBJECT (bus_proxy));
+	if (bus_proxy != NULL)
+		g_object_unref (G_OBJECT (bus_proxy));
 
 	/* already running */
  	if (request_name_result != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER) {
@@ -243,19 +244,21 @@ main (int argc, char *argv[])
 	}
 
 	/* register to be a policy agent, just like kpackagekit does */
-	ret = dbus_bus_request_name(dbus_g_connection_get_connection(system_connection),
-				    "org.freedesktop.Policy.Power",
-				    DBUS_NAME_FLAG_REPLACE_EXISTING, NULL);
-	switch (ret) {
-	case DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER:
-		g_debug ("Successfully acquired interface org.freedesktop.Policy.Power.");
-		break;
-	case DBUS_REQUEST_NAME_REPLY_IN_QUEUE:
-		g_debug ("Queued for interface org.freedesktop.Policy.Power.");
-		break;
-	default:
-		break;
-	};
+	if (system_connection != NULL) {
+		ret = dbus_bus_request_name(dbus_g_connection_get_connection(system_connection),
+					    "org.freedesktop.Policy.Power",
+					    DBUS_NAME_FLAG_REPLACE_EXISTING, NULL);
+		switch (ret) {
+		case DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER:
+			g_debug ("Successfully acquired interface org.freedesktop.Policy.Power.");
+			break;
+		case DBUS_REQUEST_NAME_REPLY_IN_QUEUE:
+			g_debug ("Queued for interface org.freedesktop.Policy.Power.");
+			break;
+		default:
+			break;
+		};
+	}
 
 	/* Only timeout and close the mainloop if we have specified it
 	 * on the command line */

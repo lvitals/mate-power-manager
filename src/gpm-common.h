@@ -30,7 +30,7 @@
 
 G_BEGIN_DECLS
 
-#define LOGIND_RUNNING() (access("/run/systemd/seats/", F_OK) >= 0)
+#define LOGIND_RUNNING() (access("/run/systemd/seats/", F_OK) >= 0 || access("/run/elogind/seats/", F_OK) >= 0)
 
 #define	GPM_DBUS_SERVICE		"org.mate.PowerManager"
 #define	GPM_DBUS_INTERFACE		"org.mate.PowerManager"

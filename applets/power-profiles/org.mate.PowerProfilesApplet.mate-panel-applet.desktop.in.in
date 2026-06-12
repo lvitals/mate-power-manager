@@ -16,3 +16,4 @@ X-MATE-Bugzilla-Product=mate-power-manager
 X-MATE-Bugzilla-Component=applets
 X-MATE-Bugzilla-Version=@VERSION@
 X-MATE-Bugzilla-OtherBinaries=mate-power-profiles-applet
+Platforms=X11;

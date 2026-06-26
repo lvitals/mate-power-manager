@@ -91,6 +91,7 @@ enable_applet = get_option('applets')
 enable_applets_inprocess = get_option('applets-in-process')
 enable_keyring = get_option('gnome-keyring')
 enable_libsecret = get_option('libsecret')
+enable_appindicator = get_option('appindicator')
 
 gtk = dependency('gtk+-3.0', version : '>= 3.22.0')
 glib = dependency('glib-2.0', version : '>= 2.50.0')
@@ -111,6 +112,22 @@ keyring = dependency('gnome-keyring-1', version : '>= 3.0.0', required: enable_k
 canberra = dependency('libcanberra-gtk3', version : '>= 0.10')
 md = dependency('mate-desktop-2.0', version : '>= 1.27.1')
 libm = cc.find_library('m', required: false)
+
+appindicator_deps = []
+if enable_appindicator
+  appindicator = dependency('ayatana-appindicator3-0.1', required : false)
+  if appindicator.found()
+    conf.set('HAVE_APPINDICATOR', true)
+    conf.set('HAVE_AYATANA_APPINDICATOR', true)
+    appindicator_deps += appindicator
+  else
+    appindicator = dependency('appindicator3-0.1', required : false)
+    if appindicator.found()
+      conf.set('HAVE_APPINDICATOR', true)
+      appindicator_deps += appindicator
+    endif
+  endif
+endif
 
 gnome = import('gnome')
 i18n = import('i18n')

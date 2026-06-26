@@ -703,7 +703,8 @@ gpm_backlight_finalize (GObject *object)
 	backlight = GPM_BACKLIGHT (object);
 
 	g_timer_destroy (backlight->priv->idle_timer);
-	gtk_widget_destroy (backlight->priv->popup);
+	if (backlight->priv->popup != NULL)
+		gtk_widget_destroy (backlight->priv->popup);
 
 	if (backlight->priv->dpms != NULL)
 		g_object_unref (backlight->priv->dpms);
@@ -797,12 +798,7 @@ gpm_backlight_init (GpmBacklight *backlight)
 	backlight->priv->idle_dim_timeout = g_settings_get_int (backlight->priv->settings, GPM_SETTINGS_IDLE_DIM_TIME);
 	gpm_idle_set_timeout_dim (backlight->priv->idle, backlight->priv->idle_dim_timeout);
 
-	/* use a visual widget */
-	backlight->priv->popup = msd_media_keys_window_new ();
-	msd_media_keys_window_set_action_custom (MSD_MEDIA_KEYS_WINDOW (backlight->priv->popup),
-						 "gpm-brightness-lcd",
-						 TRUE);
-        gtk_window_set_position (GTK_WINDOW (backlight->priv->popup), GTK_WIN_POS_NONE);
+	backlight->priv->popup = NULL;
 
 	/* DPMS mode poll class */
 	backlight->priv->dpms = gpm_dpms_new ();
@@ -829,4 +825,3 @@ gpm_backlight_new (void)
 	GpmBacklight *backlight = g_object_new (GPM_TYPE_BACKLIGHT, NULL);
 	return backlight;
 }
-

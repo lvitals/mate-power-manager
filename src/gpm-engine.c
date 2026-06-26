@@ -284,13 +284,7 @@ gpm_engine_get_icon (GpmEngine *engine)
 	if (icon != NULL)
 		return icon;
 
-	/* policy */
-	if (engine->priv->icon_policy == GPM_ICON_POLICY_PRESENT) {
-		g_debug ("no devices present, so no icon will be displayed.");
-		return NULL;
-	}
-
-	/* we fallback to the ac_adapter icon */
+	/* Fallback to the AC adapter icon when no battery-like devices exist. */
 	g_debug ("Using fallback");
 	return g_strdup (GPM_ICON_AC_ADAPTER);
 }
@@ -967,4 +961,3 @@ gpm_engine_new (void)
 	return GPM_ENGINE (gpm_engine_object);
 
 }
-

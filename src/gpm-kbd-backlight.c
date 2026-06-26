@@ -555,6 +555,9 @@ gpm_kbd_backlight_finalize (GObject *object)
 
    g_timer_destroy (backlight->priv->idle_timer);
 
+   if (backlight->priv->popup != NULL)
+       gtk_widget_destroy (backlight->priv->popup);
+
    g_object_unref (backlight->priv->control);
    g_object_unref (backlight->priv->settings);
    g_object_unref (backlight->priv->client);
@@ -686,11 +689,7 @@ noerr:
    g_signal_connect (backlight->priv->idle, "idle-changed",
              G_CALLBACK (gpm_kbd_backlight_idle_changed_cb), backlight);
 
-    /* use a visual widget */
-   backlight->priv->popup = msd_media_keys_window_new ();
-   msd_media_keys_window_set_action_custom (MSD_MEDIA_KEYS_WINDOW (backlight->priv->popup),
-                                            "gpm-brightness-kbd", TRUE);
-   gtk_window_set_position (GTK_WINDOW (backlight->priv->popup), GTK_WIN_POS_NONE);
+   backlight->priv->popup = NULL;
 
    /* since gpm is just starting we can pretty safely assume that we're not idle */
    backlight->priv->system_is_idle = FALSE;
@@ -716,4 +715,3 @@ gpm_kbd_backlight_new (void)
    GpmKbdBacklight *backlight = g_object_new (GPM_TYPE_KBD_BACKLIGHT, NULL);
    return backlight;
 }
-

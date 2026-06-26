@@ -59,6 +59,10 @@
 
 static void     gpm_tray_icon_finalize      (GObject      *object);
 static void     gpm_tray_icon_populate_menu (GpmTrayIcon  *icon, GtkMenu *menu);
+#ifdef HAVE_APPINDICATOR
+static void     gpm_tray_icon_destroy_menu_item (GtkWidget *widget,
+                                                 gpointer   user_data);
+#endif
 
 struct GpmTrayIconPrivate
 {
@@ -75,6 +79,14 @@ struct GpmTrayIconPrivate
 };
 
 G_DEFINE_TYPE_WITH_PRIVATE (GpmTrayIcon, gpm_tray_icon, G_TYPE_OBJECT)
+
+#ifdef HAVE_APPINDICATOR
+static void
+gpm_tray_icon_destroy_menu_item (GtkWidget *widget, gpointer user_data)
+{
+	gtk_widget_destroy (widget);
+}
+#endif
 
 /**
  * gpm_tray_icon_enable_actions:
@@ -162,7 +174,7 @@ gpm_tray_icon_set_icon (GpmTrayIcon *icon, const gchar *icon_name)
 		                             icon_name, icon_name);
 		/* Rebuild menu so battery percentages are up to date */
 		gtk_container_foreach (GTK_CONTAINER (icon->priv->indicator_menu),
-		                       (GtkCallback) gtk_widget_destroy, NULL);
+		                       gpm_tray_icon_destroy_menu_item, NULL);
 		gpm_tray_icon_populate_menu (icon, GTK_MENU (icon->priv->indicator_menu));
 		gtk_widget_show_all (icon->priv->indicator_menu);
 #else
@@ -428,14 +440,17 @@ gpm_tray_icon_populate_menu (GpmTrayIcon *icon, GtkMenu *menu)
 
 	/*Set up custom panel menu theme support-gtk3 only */
 	toplevel = gtk_widget_get_toplevel (GTK_WIDGET (menu));
-	/* Fix any failures of compiz/other wm's to communicate with gtk for transparency in menu theme */
-	screen = gtk_widget_get_screen(GTK_WIDGET(toplevel));
-	visual = gdk_screen_get_rgba_visual(screen);
-	gtk_widget_set_visual(GTK_WIDGET(toplevel), visual);
-	/* Set menu and its toplevel window to follow panel theme */
-	context = gtk_widget_get_style_context (GTK_WIDGET(toplevel));
-	gtk_style_context_add_class(context,"gnome-panel-menu-bar");
-	gtk_style_context_add_class(context,"mate-panel-menu-bar");
+	if (GTK_IS_WIDGET (toplevel)) {
+		/* Fix any failures of compiz/other wm's to communicate with gtk for transparency in menu theme */
+		screen = gtk_widget_get_screen (toplevel);
+		visual = gdk_screen_get_rgba_visual (screen);
+		if (visual != NULL)
+			gtk_widget_set_visual (toplevel, visual);
+		/* Set menu and its toplevel window to follow panel theme */
+		context = gtk_widget_get_style_context (toplevel);
+		gtk_style_context_add_class (context, "gnome-panel-menu-bar");
+		gtk_style_context_add_class (context, "mate-panel-menu-bar");
+	}
 
 	/* about */
 	item = mate_image_menu_item_new_with_mnemonic (_("_About"));
@@ -584,7 +599,6 @@ gpm_tray_icon_init (GpmTrayIcon *icon)
 	                        GTK_MENU (icon->priv->indicator_menu));
 #else
 	icon->priv->status_icon = gtk_status_icon_new ();
-	gpm_tray_icon_show (icon, FALSE);
 	g_signal_connect_object (G_OBJECT (icon->priv->status_icon),
 				 "popup_menu",
 				 G_CALLBACK (gpm_tray_icon_popup_menu_cb),
@@ -636,4 +650,3 @@ gpm_tray_icon_new (void)
 	tray_icon = g_object_new (GPM_TYPE_TRAY_ICON, NULL);
 	return GPM_TRAY_ICON (tray_icon);
 }
-

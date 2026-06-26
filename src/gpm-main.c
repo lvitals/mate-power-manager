@@ -44,6 +44,22 @@
 
 #include "org.mate.PowerManager.h"
 
+#ifdef HAVE_AYATANA_APPINDICATOR
+static void
+gpm_main_ayatana_log_handler (const gchar    *log_domain,
+			      GLogLevelFlags  log_level,
+			      const gchar    *message,
+			      gpointer        user_data)
+{
+	if ((log_level & G_LOG_LEVEL_WARNING) != 0 &&
+	    message != NULL &&
+	    g_str_has_prefix (message, "libayatana-appindicator is deprecated."))
+		return;
+
+	g_log_default_handler (log_domain, log_level, message, user_data);
+}
+#endif
+
 /**
  * gpm_object_register:
  * @connection: What we want to register to
@@ -181,6 +197,13 @@ main (int argc, char *argv[])
 	bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
 	textdomain (GETTEXT_PACKAGE);
 
+#ifdef HAVE_AYATANA_APPINDICATOR
+	g_log_set_handler ("libayatana-appindicator",
+			   G_LOG_LEVEL_WARNING,
+			   gpm_main_ayatana_log_handler,
+			   NULL);
+#endif
+
 	dbus_g_thread_init ();
 
 	context = g_option_context_new (N_("MATE Power Manager"));
@@ -239,7 +262,10 @@ main (int argc, char *argv[])
 	manager = gpm_manager_new ();
 
 	if (!gpm_object_register (session_connection, G_OBJECT (manager))) {
-		g_error ("%s is already running in this session.", GPM_NAME);
+		g_warning ("%s is already running in this session.", GPM_NAME);
+		g_main_loop_unref (loop);
+		g_object_unref (session);
+		g_object_unref (manager);
 		goto unref_program;
 	}
 

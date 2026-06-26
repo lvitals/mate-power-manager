@@ -1816,6 +1816,8 @@ static void
 gpm_manager_init (GpmManager *manager)
 {
 	gboolean check_type_cpu;
+	gchar *icon;
+	gchar *summary;
 	DBusGConnection *connection;
 	GError *error = NULL;
 
@@ -1931,6 +1933,18 @@ gpm_manager_init (GpmManager *manager)
 			  G_CALLBACK (gpm_manager_engine_charge_critical_cb), manager);
 	g_signal_connect (manager->priv->engine, "charge-action",
 			  G_CALLBACK (gpm_manager_engine_charge_action_cb), manager);
+
+	icon = gpm_engine_get_icon (manager->priv->engine);
+	if (icon != NULL) {
+		gpm_tray_icon_set_icon (manager->priv->tray_icon, icon);
+		g_free (icon);
+	}
+
+	summary = gpm_engine_get_summary (manager->priv->engine);
+	if (summary != NULL) {
+		gpm_tray_icon_set_tooltip (manager->priv->tray_icon, summary);
+		g_free (summary);
+	}
 
 	g_signal_connect (gtk_settings_get_default (),
 	                  "notify::gtk-icon-theme-name",

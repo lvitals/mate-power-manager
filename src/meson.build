@@ -63,7 +63,7 @@ deps = [
   keyring,
   libsecret,
   notify,
-]
+] + appindicator_deps
 
 libmpm_shared = static_library(
   'libmpmstatic',

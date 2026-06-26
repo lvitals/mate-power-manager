@@ -435,7 +435,7 @@ egg_idletime_init (EggIdletime *idletime)
 
 	/* arh. we don't have IDLETIME support */
 	if (!idletime->priv->idle_counter) {
-		g_warning ("No idle counter.");
+		g_debug ("No idle counter.");
 		return;
 	}
 }
@@ -702,4 +702,3 @@ egg_idletime_test (gpointer data)
 }
 
 #endif
-

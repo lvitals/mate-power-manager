@@ -29,6 +29,7 @@
 #include <time.h>
 #include <errno.h>
 
+#include <gio/gio.h>
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
 #include <X11/extensions/Xrandr.h>
@@ -37,9 +38,7 @@
 #include <string.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#ifdef HAVE_UNISTD_H
 #include <unistd.h>
-#endif /* HAVE_UNISTD_H */
 
 #include "egg-discrete.h"
 
@@ -48,6 +47,7 @@
 #include "gpm-marshal.h"
 
 #define GPM_SOLE_SETTER_USE_CACHE	TRUE	/* this may be insanity */
+#define GPM_BACKLIGHT_SYSFS_LOCATION	"/sys/class/backlight"
 
 struct GpmBrightnessPrivate
 {
@@ -114,6 +114,117 @@ gpm_brightness_helper_strtoint (const gchar *text, gint *value)
 }
 
 /**
+ * gpm_brightness_get_best_backlight:
+ **/
+static gchar *
+gpm_brightness_get_best_backlight (void)
+{
+	GDir *dir;
+	const gchar *name;
+	gchar *fallback = NULL;
+
+	dir = g_dir_open (GPM_BACKLIGHT_SYSFS_LOCATION, 0, NULL);
+	if (dir == NULL)
+		return NULL;
+
+	while ((name = g_dir_read_name (dir)) != NULL) {
+		gchar *path;
+
+		path = g_build_filename (GPM_BACKLIGHT_SYSFS_LOCATION, name, NULL);
+		if (!g_file_test (path, G_FILE_TEST_IS_DIR)) {
+			g_free (path);
+			continue;
+		}
+
+		if (g_str_has_prefix (name, "intel_") ||
+		    g_str_has_prefix (name, "amdgpu_") ||
+		    g_str_has_prefix (name, "nvidia_")) {
+			g_dir_close (dir);
+			return path;
+		}
+
+		if (fallback == NULL)
+			fallback = path;
+		else
+			g_free (path);
+	}
+
+	g_dir_close (dir);
+	return fallback;
+}
+
+/**
+ * gpm_brightness_logind_set_value:
+ **/
+static gboolean
+gpm_brightness_logind_set_value (gint value)
+{
+	GDBusConnection *connection;
+	GError *error = NULL;
+	GVariant *reply;
+	GVariant *set_reply;
+	gchar *filename;
+	gchar *device_name;
+	gchar *session_path = NULL;
+	gboolean ret = FALSE;
+
+	filename = gpm_brightness_get_best_backlight ();
+	if (filename == NULL)
+		return FALSE;
+
+	device_name = g_path_get_basename (filename);
+	g_free (filename);
+
+	connection = g_bus_get_sync (G_BUS_TYPE_SYSTEM, NULL, &error);
+	if (connection == NULL) {
+		g_debug ("failed to connect to system bus: %s", error->message);
+		g_error_free (error);
+		g_free (device_name);
+		return FALSE;
+	}
+
+	reply = g_dbus_connection_call_sync (connection,
+					     "org.freedesktop.login1",
+					     "/org/freedesktop/login1",
+					     "org.freedesktop.login1.Manager",
+					     "GetSessionByPID",
+					     g_variant_new ("(u)", (guint32) getpid ()),
+					     G_VARIANT_TYPE ("(o)"),
+					     G_DBUS_CALL_FLAGS_NONE,
+					     -1, NULL, &error);
+	if (reply == NULL) {
+		g_debug ("failed to get logind session for brightness change: %s", error->message);
+		g_error_free (error);
+		goto out;
+	}
+
+	g_variant_get (reply, "(&o)", &session_path);
+
+	set_reply = g_dbus_connection_call_sync (connection,
+						 "org.freedesktop.login1",
+						 session_path,
+						 "org.freedesktop.login1.Session",
+						 "SetBrightness",
+						 g_variant_new ("(ssu)", "backlight", device_name, (guint32) value),
+						 NULL,
+						 G_DBUS_CALL_FLAGS_NONE,
+						 -1, NULL, &error);
+	if (set_reply == NULL) {
+		g_debug ("failed to set brightness via logind: %s", error->message);
+		g_error_free (error);
+	} else {
+		ret = TRUE;
+		g_variant_unref (set_reply);
+	}
+
+	g_variant_unref (reply);
+out:
+	g_object_unref (connection);
+	g_free (device_name);
+	return ret;
+}
+
+/**
  * gpm_brightness_helper_get_value:
  **/
 static gint
@@ -157,6 +268,12 @@ gpm_brightness_helper_set_value (const gchar *argument, gint value)
 	GError *error = NULL;
 	gint exit_status = 0;
 	gchar *command = NULL;
+
+	if (g_strcmp0 (argument, "set-brightness") == 0) {
+		ret = gpm_brightness_logind_set_value (value);
+		if (ret)
+			return TRUE;
+	}
 
 	/* get the data */
 	command = g_strdup_printf ("pkexec " SBINDIR "/mate-power-backlight-helper --%s %i", argument, value);
@@ -1000,4 +1117,3 @@ gpm_brightness_new (void)
 	}
 	return GPM_BRIGHTNESS (gpm_brightness_object);
 }
-

@@ -95,6 +95,7 @@ enable_appindicator = get_option('appindicator')
 
 gtk = dependency('gtk+-3.0', version : '>= 3.22.0')
 glib = dependency('glib-2.0', version : '>= 2.50.0')
+gio = dependency('gio-2.0', version : '>= 2.50.0')
 gdk = dependency('gdk-3.0', version : '>= 3.22.0')
 cairo = dependency('cairo', version : '>= 1.0.0')
 xrandr = dependency('xrandr', version : '>= 1.3.0')

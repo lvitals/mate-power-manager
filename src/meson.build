@@ -56,6 +56,7 @@ dbus_Manager = custom_target('org.mate.PowerManager',
 )
 deps = [
   glib,
+  gio,
   gtk,
   dbusglib,
   cairo,

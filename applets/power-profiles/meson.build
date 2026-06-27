@@ -52,7 +52,11 @@ else
 
   # .service files
   service_data = configuration_data()
-  service_data.set('LIBEXECDIR', join_paths(prefix, get_option('libexecdir')))
+  libexecdir_val = join_paths(prefix, get_option('libexecdir'))
+  if have_wayland
+    libexecdir_val = 'env GDK_BACKEND=x11 ' + libexecdir_val
+  endif
+  service_data.set('LIBEXECDIR', libexecdir_val)
 
   configure_file(
     input : 'org.mate.panel.applet.PowerProfilesAppletFactory.service.in',

@@ -88,7 +88,7 @@ foreach arg: test_link_args
 endforeach
 
 enable_applet = get_option('applets')
-enable_applets_inprocess = get_option('applets-in-process')
+enable_applets_inprocess = true
 enable_keyring = get_option('gnome-keyring')
 enable_libsecret = get_option('libsecret')
 enable_appindicator = get_option('appindicator')
@@ -113,6 +113,9 @@ keyring = dependency('gnome-keyring-1', version : '>= 3.0.0', required: enable_k
 canberra = dependency('libcanberra-gtk3', version : '>= 0.10')
 md = dependency('mate-desktop-2.0', version : '>= 1.27.1')
 libm = cc.find_library('m', required: false)
+
+gdk_wayland = dependency('gdk-wayland-3.0', required: false)
+have_wayland = gdk_wayland.found()
 
 appindicator_deps = []
 if enable_appindicator
